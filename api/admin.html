@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Code Manager</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+    button { padding: 5px 10px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Access Code Manager</h1>
+  
+  <div>
+    <input type="password" id="newCode" placeholder="New code">
+    <button onclick="addCode()">Add Code</button>
+  </div>
+
+  <table id="codesTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Created</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const API_URL = "https://your-deno-deploy.deno.dev/api";
+    const ADMIN_TOKEN = "your_secret_admin_password"; // Same as in Deno Deploy
+
+    async function loadCodes() {
+      const res = await fetch(`${API_URL}/codes`, {
+        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
+      });
+      const codes = await res.json();
+      
+      const table = document.querySelector("#codesTable tbody");
+      table.innerHTML = codes.map(code => `
+        <tr>
+          <td>${code.id}</td>
+          <td>${new Date(code.created_at).toLocaleString()}</td>
+          <td><button onclick="deleteCode(${code.id})">Delete</button></td>
+        </tr>
+      `).join("");
+    }
+
+    async function addCode() {
+      const code = document.getElementById("newCode").value;
+      await fetch(`${API_URL}/codes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ADMIN_TOKEN}`
+        },
+        body: JSON.stringify({ code })
+      });
+      loadCodes();
+    }
+
+    async function deleteCode(id) {
+      await fetch(`${API_URL}/codes/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
+      });
+      loadCodes();
+    }
+
+    // Load codes on page load
+    loadCodes();
+  </script>
+</body>
+</html>
