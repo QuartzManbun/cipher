@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cipher App</title>
+  <style>
+    /* Your existing CSS */
+  </style>
+</head>
+<body>
+  <div class="auth-modal" id="authModal">
+    <input type="password" id="authCode" placeholder="Enter code">
+    <button onclick="auth()">Submit</button>
+  </div>
+
+  <script>
+    const API_URL = "https://your-project-name.deno.dev/api";
+
+    async function auth() {
+      const code = document.getElementById("authCode").value;
+      const res = await fetch(`${API_URL}/auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code })
+      });
+      
+      if (res.ok) {
+        window.location.href = "/app.html"; // Redirect to app
+      }
+    }
+  </script>
+</body>
+</html>
