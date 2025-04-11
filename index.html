@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nested Shift-Substitution Cipher</title>
+    <title>BHSP Cipher</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -183,29 +183,6 @@
           return { error: error.message };
         }
       }
-      serve(async (req) => {
-  try {
-    const url = new URL(req.url);
-    
-    // Public routes
-    if (url.pathname === '/api/login') return handleLogin(req);
-    
-    // Protected routes
-    const user = await verifyAuth(req);
-    
-    if (url.pathname === '/api/encrypt') {
-      const { message } = await req.json();
-      return new Response(JSON.stringify({
-        encrypted: yourEncryptFunction(message, user.id)
-      }));
-    }
-    
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 401
-    });
-  }
-});
 
       async function encryptMessage() {
         const message = document.getElementById("encryptMessage").value;
@@ -305,15 +282,7 @@
           ).innerHTML = `<p style="color: green;">Passcode updated successfully!</p>`;
         }
       }
-      async function verifyAuth(req: Request) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
-  if (!token) throw new Error('Missing token');
-
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error) throw new Error('Invalid token');
-  
-  return user;
-}
+      
     </script>
   </body>
 </html>
