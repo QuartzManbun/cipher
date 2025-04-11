@@ -1,76 +1,64 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Code Manager</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
-    button { padding: 5px 10px; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <h1>Access Code Manager</h1>
-  
-  <div>
-    <input type="password" id="newCode" placeholder="New code">
-    <button onclick="addCode()">Add Code</button>
-  </div>
+  <head>
+    <title>Admin Panel</title>
+  </head>
+  <body>
+    <div id="admin-app">
+      <h1>Admin Settings</h1>
+      <div v-if="user && isAdmin">
+        <h2>Update Passcode</h2>
+        <input v-model="newPasscode" type="password" />
+        <button @click="updatePasscode">Update</button>
+      </div>
+      <div v-else>
+        <p>Admin access required</p>
+      </div>
+    </div>
 
-  <table id="codesTable">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Created</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://esm.sh/@supabase/supabase-js@2"></script>
+    <script>
+      const supabase = createClient(
+        "YOUR_SUPABASE_URL",
+        "YOUR_SUPABASE_ANON_KEY"
+      );
 
-  <script>
-    const API_URL = "https://your-deno-deploy.deno.dev/api";
-    const ADMIN_TOKEN = "your_secret_admin_password"; // Same as in Deno Deploy
+      const { createApp, ref, onMounted } = Vue;
 
-    async function loadCodes() {
-      const res = await fetch(`${API_URL}/codes`, {
-        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
-      });
-      const codes = await res.json();
-      
-      const table = document.querySelector("#codesTable tbody");
-      table.innerHTML = codes.map(code => `
-        <tr>
-          <td>${code.id}</td>
-          <td>${new Date(code.created_at).toLocaleString()}</td>
-          <td><button onclick="deleteCode(${code.id})">Delete</button></td>
-        </tr>
-      `).join("");
-    }
+      createApp({
+        setup() {
+          const user = ref(null);
+          const isAdmin = ref(false);
+          const newPasscode = ref("");
 
-    async function addCode() {
-      const code = document.getElementById("newCode").value;
-      await fetch(`${API_URL}/codes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${ADMIN_TOKEN}`
+          onMounted(async () => {
+            const {
+              data: { user: currentUser },
+            } = await supabase.auth.getUser();
+            user.value = currentUser;
+            isAdmin.value = currentUser?.email?.endsWith("@admin.com");
+          });
+
+          async function updatePasscode() {
+            const { data, error } = await supabase.auth.getSession();
+            if (error) return;
+
+            const response = await fetch("/api/admin/update-passcode", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${data.session.access_token}`,
+              },
+              body: JSON.stringify({ newPasscode: newPasscode.value }),
+            });
+
+            // Handle response
+          }
+
+          return { user, isAdmin, newPasscode, updatePasscode };
         },
-        body: JSON.stringify({ code })
-      });
-      loadCodes();
-    }
-
-    async function deleteCode(id) {
-      await fetch(`${API_URL}/codes/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
-      });
-      loadCodes();
-    }
-
-    // Load codes on page load
-    loadCodes();
-  </script>
-</body>
+      }).mount("#admin-app");
+    </script>
+  </body>
 </html>
