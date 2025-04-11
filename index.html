@@ -1,32 +1,300 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <title>Cipher App</title>
-  <style>
-    /* Your existing CSS */
-  </style>
-</head>
-<body>
-  <div class="auth-modal" id="authModal">
-    <input type="password" id="authCode" placeholder="Enter code">
-    <button onclick="auth()">Submit</button>
-  </div>
-
-  <script>
-    const API_URL = "https://quartzmanbu-cipher-18.deno.dev/api";
-
-    async function auth() {
-      const code = document.getElementById("authCode").value;
-      const res = await fetch(`${API_URL}/auth`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code })
-      });
-      
-      if (res.ok) {
-        window.location.href = "/app.html"; // Redirect to app
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nested Shift-Substitution Cipher</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
       }
-    }
-  </script>
-</body>
+      .container {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input,
+      textarea,
+      select,
+      button {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+        padding: 10px;
+        margin-top: 10px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      .tab {
+        overflow: hidden;
+        border: 1px solid #ccc;
+        background-color: #f1f1f1;
+        border-radius: 4px 4px 0 0;
+      }
+      .tab button {
+        background-color: inherit;
+        float: left;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 10px 16px;
+        transition: 0.3s;
+        width: auto;
+      }
+      .tab button:hover {
+        background-color: #ddd;
+      }
+      .tab button.active {
+        background-color: #4caf50;
+        color: white;
+      }
+      .tabcontent {
+        display: none;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        background-color: white;
+      }
+      .admin-section {
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+      }
+      #result {
+        margin-top: 20px;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        min-height: 50px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Nested Shift-Substitution Cipher</h1>
+
+      <div class="tab">
+        <button class="tablinks active" onclick="openTab(event, 'encryptTab')">
+          Encrypt
+        </button>
+        <button class="tablinks" onclick="openTab(event, 'decryptTab')">
+          Decrypt
+        </button>
+      </div>
+
+      <div id="encryptTab" class="tabcontent" style="display: block">
+        <div class="form-group">
+          <label for="encryptMessage">Message to Encrypt:</label>
+          <textarea id="encryptMessage" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="shift1">First Shift Value:</label>
+          <input type="number" id="shift1" value="5" />
+        </div>
+        <div class="form-group">
+          <label for="shift2">Second Shift Value:</label>
+          <input type="number" id="shift2" value="3" />
+        </div>
+        <div class="form-group">
+          <label for="passcode">Passcode:</label>
+          <input type="password" id="passcode" />
+        </div>
+        <button onclick="encryptMessage()">Encrypt Message</button>
+        <div id="encryptResult" class="result"></div>
+      </div>
+
+      <div id="decryptTab" class="tabcontent">
+        <div class="form-group">
+          <label for="decryptMessage">Message to Decrypt:</label>
+          <textarea id="decryptMessage" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="decryptShift1">First Shift Value:</label>
+          <input type="number" id="decryptShift1" value="5" />
+        </div>
+        <div class="form-group">
+          <label for="decryptShift2">Second Shift Value:</label>
+          <input type="number" id="decryptShift2" value="3" />
+        </div>
+        <div class="form-group">
+          <label for="decryptPasscode">Passcode:</label>
+          <input type="password" id="decryptPasscode" />
+        </div>
+        <button onclick="decryptMessage()">Decrypt Message</button>
+        <div id="decryptResult" class="result"></div>
+      </div>
+
+      <div class="admin-section">
+        <h2>Admin Settings</h2>
+        <div class="form-group">
+          <label for="currentPasscode">Current Passcode:</label>
+          <input type="password" id="currentPasscode" />
+        </div>
+        <div class="form-group">
+          <label for="newPasscode">New Passcode:</label>
+          <input type="password" id="newPasscode" />
+        </div>
+        <button onclick="updatePasscode()">Update Passcode</button>
+        <div id="adminResult"></div>
+      </div>
+    </div>
+
+    <script>
+      const API_URL = "YOUR_DENO_DEPLOY_URL"; // Replace with your Deno Deploy URL
+
+      function openTab(evt, tabName) {
+        const tabcontent = document.getElementsByClassName("tabcontent");
+        for (let i = 0; i < tabcontent.length; i++) {
+          tabcontent[i].style.display = "none";
+        }
+
+        const tablinks = document.getElementsByClassName("tablinks");
+        for (let i = 0; i < tablinks.length; i++) {
+          tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+
+        document.getElementById(tabName).style.display = "block";
+        evt.currentTarget.className += " active";
+      }
+
+      async function callAPI(action, data) {
+        try {
+          const response = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ action, ...data }),
+          });
+
+          return await response.json();
+        } catch (error) {
+          console.error("Error:", error);
+          return { error: error.message };
+        }
+      }
+
+      async function encryptMessage() {
+        const message = document.getElementById("encryptMessage").value;
+        const shift1 = parseInt(document.getElementById("shift1").value);
+        const shift2 = parseInt(document.getElementById("shift2").value);
+        const passcode = document.getElementById("passcode").value;
+
+        if (!message || !passcode) {
+          alert("Please enter a message and passcode");
+          return;
+        }
+
+        const result = await callAPI("encrypt", {
+          message,
+          shift1,
+          shift2,
+          passcode,
+        });
+
+        if (result.error) {
+          document.getElementById(
+            "encryptResult"
+          ).innerHTML = `<p style="color: red;">Error: ${result.error}</p>`;
+        } else {
+          document.getElementById("encryptResult").innerHTML = `
+          <p><strong>Encrypted Message:</strong></p>
+          <p>${result.result}</p>
+        `;
+        }
+      }
+
+      async function decryptMessage() {
+        const message = document.getElementById("decryptMessage").value;
+        const shift1 = parseInt(document.getElementById("decryptShift1").value);
+        const shift2 = parseInt(document.getElementById("decryptShift2").value);
+        const passcode = document.getElementById("decryptPasscode").value;
+
+        if (!message || !passcode) {
+          alert("Please enter a message and passcode");
+          return;
+        }
+
+        const result = await callAPI("decrypt", {
+          message,
+          shift1,
+          shift2,
+          passcode,
+        });
+
+        if (result.error) {
+          document.getElementById(
+            "decryptResult"
+          ).innerHTML = `<p style="color: red;">Error: ${result.error}</p>`;
+        } else {
+          document.getElementById("decryptResult").innerHTML = `
+          <p><strong>Decrypted Message:</strong></p>
+          <p>${result.result}</p>
+        `;
+        }
+      }
+
+      async function updatePasscode() {
+        const currentPasscode =
+          document.getElementById("currentPasscode").value;
+        const newPasscode = document.getElementById("newPasscode").value;
+
+        if (!currentPasscode || !newPasscode) {
+          alert("Please enter both current and new passcodes");
+          return;
+        }
+
+        // First verify current passcode
+        const verifyResult = await callAPI("verify", {
+          passcode: currentPasscode,
+        });
+
+        if (!verifyResult.valid) {
+          document.getElementById(
+            "adminResult"
+          ).innerHTML = `<p style="color: red;">Invalid current passcode</p>`;
+          return;
+        }
+
+        // Update passcode
+        const updateResult = await callAPI("updatePasscode", {
+          passcode: currentPasscode,
+          newPasscode,
+        });
+
+        if (updateResult.error) {
+          document.getElementById(
+            "adminResult"
+          ).innerHTML = `<p style="color: red;">Error: ${updateResult.error}</p>`;
+        } else {
+          document.getElementById(
+            "adminResult"
+          ).innerHTML = `<p style="color: green;">Passcode updated successfully!</p>`;
+        }
+      }
+    </script>
+  </body>
 </html>

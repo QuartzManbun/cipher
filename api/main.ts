@@ -1,90 +1,193 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_KEY")!
-);
-
-// ADMIN_TOKEN for protecting admin endpoints
-const ADMIN_TOKEN = Deno.env.get("ADMIN_TOKEN") || "your_secret_admin_password";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
 serve(async (req) => {
-  const { pathname } = new URL(req.url);
-
-  // CORS headers
-  const headers = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, DELETE",
-    "Content-Type": "application/json",
-  };
-
-  // [Existing /api/auth endpoint...]
-
-  // ADMIN: List all codes (GET /api/codes)
-  if (pathname === "/api/codes" && req.method === "GET") {
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader !== `Bearer ${ADMIN_TOKEN}`) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers });
-    }
-
-    const { data } = await supabase
-      .from("auth_codes")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    return new Response(JSON.stringify(data), { headers });
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
-  // ADMIN: Add new code (POST /api/codes)
-  if (pathname === "/api/codes" && req.method === "POST") {
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader !== `Bearer ${ADMIN_TOKEN}`) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers });
+  const supabaseClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+  );
+
+  try {
+    const { action, passcode, newPasscode, message, shift1, shift2 } =
+      await req.json();
+
+    // Verify passcode for protected actions
+    if (action !== "verify" && action !== "updatePasscode") {
+      const { data, error } = await supabaseClient
+        .from("cipher_auth")
+        .select("passcode")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (error || !data || data[0].passcode !== passcode) {
+        return new Response(JSON.stringify({ error: "Invalid passcode" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
+      }
     }
 
-    const { code } = await req.json();
-    const hash = await sha256(code);
+    // Handle different actions
+    switch (action) {
+      case "verify":
+        const { data } = await supabaseClient
+          .from("cipher_auth")
+          .select("passcode")
+          .order("created_at", { ascending: false })
+          .limit(1);
 
-    const { error } = await supabase
-      .from("auth_codes")
-      .insert([{ code_hash: hash }]);
+        const isValid = data && data[0]?.passcode === passcode;
+        return new Response(JSON.stringify({ valid: isValid }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
 
-    if (error) {
-      return new Response(JSON.stringify({ error: "Code exists" }), { status: 400, headers });
+      case "updatePasscode":
+        const { error } = await supabaseClient
+          .from("cipher_auth")
+          .insert([{ passcode: newPasscode }]);
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+
+      case "encrypt":
+        const encrypted = encryptMessage(message, shift1, shift2);
+        return new Response(JSON.stringify({ result: encrypted }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+
+      case "decrypt":
+        const decrypted = decryptMessage(message, shift1, shift2);
+        return new Response(JSON.stringify({ result: decrypted }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+
+      default:
+        return new Response(JSON.stringify({ error: "Invalid action" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
     }
-
-    return new Response(JSON.stringify({ success: true }), { headers });
-  }
-
-  // ADMIN: Delete code (DELETE /api/codes/:id)
-  if (pathname.startsWith("/api/codes/") && req.method === "DELETE") {
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader !== `Bearer ${ADMIN_TOKEN}`) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers });
-    }
-
-    const id = pathname.split("/").pop();
-    const { error } = await supabase
-      .from("auth_codes")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      return new Response(JSON.stringify({ error: "Delete failed" }), { status: 500, headers });
-    }
-
-    return new Response(JSON.stringify({ success: true }), { headers });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400,
+    });
   }
 });
 
-// SHA-256 helper
-async function sha256(text: string): Promise<string> {
-  const buffer = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text)
-  );
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, "0"))
+// Cipher functions
+function encryptMessage(message, shift1, shift2) {
+  const substitutionMap = {
+    A: "Q",
+    B: "W",
+    C: "E",
+    D: "R",
+    E: "T",
+    F: "Y",
+    G: "U",
+    H: "I",
+    I: "O",
+    J: "P",
+    K: "A",
+    L: "S",
+    M: "D",
+    N: "F",
+    O: "G",
+    P: "H",
+    Q: "J",
+    R: "K",
+    S: "L",
+    T: "Z",
+    U: "X",
+    V: "C",
+    W: "V",
+    X: "B",
+    Y: "N",
+    Z: "M",
+  };
+
+  return message
+    .toUpperCase()
+    .split("")
+    .map((char) => {
+      if (/[A-Z]/.test(char)) {
+        // First shift
+        let encrypted = shiftChar(char, shift1);
+        // Substitution
+        encrypted = substitutionMap[encrypted] || encrypted;
+        // Second shift
+        encrypted = shiftChar(encrypted, shift2);
+        return encrypted;
+      }
+      return char;
+    })
     .join("");
+}
+
+function decryptMessage(message, shift1, shift2) {
+  const inverseSubstitutionMap = {
+    Q: "A",
+    W: "B",
+    E: "C",
+    R: "D",
+    T: "E",
+    Y: "F",
+    U: "G",
+    I: "H",
+    O: "I",
+    P: "J",
+    A: "K",
+    S: "L",
+    D: "M",
+    F: "N",
+    G: "O",
+    H: "P",
+    J: "Q",
+    K: "R",
+    L: "S",
+    Z: "T",
+    X: "U",
+    C: "V",
+    V: "W",
+    B: "X",
+    N: "Y",
+    M: "Z",
+  };
+
+  return message
+    .toUpperCase()
+    .split("")
+    .map((char) => {
+      if (/[A-Z]/.test(char)) {
+        // Reverse second shift
+        let decrypted = shiftChar(char, -shift2);
+        // Reverse substitution
+        decrypted = inverseSubstitutionMap[decrypted] || decrypted;
+        // Reverse first shift
+        decrypted = shiftChar(decrypted, -shift1);
+        return decrypted;
+      }
+      return char;
+    })
+    .join("");
+}
+
+function shiftChar(char, shift) {
+  const base = "A".charCodeAt(0);
+  const code = char.charCodeAt(0) - base;
+  const shifted = (code + shift) % 26;
+  return String.fromCharCode(((shifted + 26) % 26) + base);
 }
