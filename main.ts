@@ -14,10 +14,8 @@ serve(async (req) => {
   }
 
   const supabaseClient = createClient(
-    Deno.env.get("https://dlueeyktbbdjcobckigd.supabase.co") ?? "",
-    Deno.env.get(
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsdWVleWt0YmJkamNvYmNraWdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM4MTY0MjksImV4cCI6MjA1OTM5MjQyOX0.FSShxBY_4xaTWxGMy9pB7LPdcvCK0LTU0XaUf2NN3lA"
-    ) ?? ""
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
   );
 
   try {
