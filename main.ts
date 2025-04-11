@@ -1,6 +1,119 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const supabaseClient = createClient(
+  Deno.env.get("SUPABASE_URL") ?? "",
+  Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+  {
+    global: {
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+    },
+  }
+);
+
+serve(async (req) => {
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const url = new URL(req.url);
+
+  // Public routes
+  if (url.pathname === "/api/login") {
+    return handleLogin(req);
+  }
+
+  if (url.pathname === "/api/signup") {
+    return handleSignup(req);
+  }
+
+  // Protected routes
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!token) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Verify JWT
+  const {
+    data: { user },
+    error,
+  } = await supabaseClient.auth.getUser(token);
+  if (error || !user) {
+    return new Response(JSON.stringify({ error: "Invalid token" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Admin-only routes
+  if (url.pathname === "/api/admin/update-passcode") {
+    if (!user.email?.endsWith("@admin.com")) {
+      // Adjust your admin check
+      return new Response(JSON.stringify({ error: "Admin access required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    return handleUpdatePasscode(req);
+  }
+
+  // Cipher routes
+  if (url.pathname === "/api/encrypt") {
+    return handleEncrypt(req);
+  }
+
+  if (url.pathname === "/api/decrypt") {
+    return handleDecrypt(req);
+  }
+
+  return new Response("Not found", { status: 404 });
+});
+
+// Handler functions
+async function handleLogin(req: Request) {
+  const { email, password } = await req.json();
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  return new Response(JSON.stringify(data), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function handleUpdatePasscode(req: Request) {
+  const { newPasscode } = await req.json();
+  // Update passcode in your database
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// Add similar handlers for signup, encrypt, decrypt
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
